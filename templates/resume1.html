@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Analysis Report</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --card-color: #161b22;
+            --border-color: #30363d;
+            --text-color: #c9d1d9;
+            --text-color-secondary: #8b949e;
+            --accent-color: #58a6ff;
+            --accent-color-hover: #79c0ff;
+            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 20px auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* --- Header & Form --- */
+        .header-card {
+            background-color: var(--card-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 25px;
+            text-align: center;
+        }
+
+        h1 {
+            color: var(--accent-color);
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .file-upload-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+
+        input[type="file"] {
+            font-size: 100px;
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .btn-upload {
+            background-color: var(--accent-color);
+            color: var(--bg-color);
+            border: none;
+            padding: 12px 20px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .btn-upload:hover {
+            background-color: var(--accent-color-hover);
+        }
+
+        #fileNameDisplay {
+            font-size: 14px;
+            color: var(--text-color-secondary);
+        }
+
+        /* --- Main Content Grid --- */
+        .main-content {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .main-column {
+            flex: 1;
+            min-width: 300px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .details-column {
+            flex: 1.5;
+            min-width: 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* --- Info Cards --- */
+        .info-card {
+            background-color: var(--card-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .info-card h3 {
+            margin-top: 0;
+            color: var(--accent-color);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        /* Large display for primary prediction */
+        .prediction-display {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .prediction-display .label {
+            font-size: 16px;
+            color: var(--text-color-secondary);
+            margin-bottom: 5px;
+        }
+
+        .prediction-display .value {
+            font-size: 28px;
+            font-weight: 600;
+            color: #38bdae; /* A different accent for predictions */
+        }
+
+        .recommendation-display .value {
+             font-size: 24px;
+             font-weight: 600;
+             color: #60a5fa;
+        }
+
+        /* List styles for skills/education */
+        .info-list {
+            list-style: none;
+            padding-left: 0;
+            margin: 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .info-list li {
+            background-color: rgba(88, 166, 255, 0.1);
+            color: var(--accent-color-hover);
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+
+        /* Contact Info */
+        .contact-info p {
+            margin: 8px 0;
+            font-size: 15px;
+        }
+        .contact-info strong {
+            color: var(--text-color-secondary);
+            margin-right: 8px;
+            display: inline-block;
+            width: 60px;
+        }
+
+        /* Chart Canvas */
+        #categoryChart {
+            max-height: 350px;
+        }
+
+        /* Message Box */
+        .message {
+            text-align: center;
+            padding: 15px;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+        .message-success {
+            background-color: #1f2c26;
+            color: #38bdae;
+            border: 1px solid #23493c;
+        }
+        .message-error {
+            background-color: #2c1f1f;
+            color: #f87171;
+            border: 1px solid #492323;
+        }
+
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+
+        <div class="header-card">
+            <h1>Resume Analysis Report</h1>
+            <form action="/predict" method="post" enctype="multipart/form-data">
+                <label for="resumeFile" class="btn-upload">
+                    Choose Resume File (PDF or TXT)
+                </label>
+                <input type="file" id="resumeFile" name="resume" onchange="displayFileName(this)">
+
+                <span id="fileNameDisplay"></span>
+                <button type="submit" class="btn-upload" style="background-color: #2da44e;">Analyze Resume</button>
+            </form>
+
+            {% if message %}
+                <p class="message message-error">{{ message }}</p>
+            {% endif %}
+        </div>
+
+        {% if predicted_category %}
+        <div class="main-content">
+
+            <div class="main-column">
+
+                <div class="info-card">
+                    <h3>Candidate Info</h3>
+                    <div class="contact-info">
+                        <p><strong>Name:</strong> {{ name | default('Not Found') }}</p>
+                        <p><strong>Email:</strong> {{ email | default('Not Found') }}</p>
+                        <p><strong>Phone:</strong> {{ phone | default('Not Found') }}</p>
+                    </div>
+                </div>
+
+                <div class="info-card prediction-display">
+                    <div class="label">Predicted Resume Category</div>
+                    <div class="value">{{ predicted_category }}</div>
+                </div>
+
+                <div class="info-card prediction-display recommendation-display">
+                    <div class="label">Recommended Job Title</div>
+                    <div class="value">{{ recommended_job | default('N/A') }}</div>
+                </div>
+
+            </div>
+
+            <div class="details-column">
+
+                <div class="info-card">
+                    <h3>Category Confidence</h3>
+                    <canvas id="categoryChart"></canvas>
+                </div>
+
+                <div class="info-card">
+                    <h3>Skills</h3>
+                    {% if extracted_skills %}
+                    <ul class="info-list">
+                        {% for skill in extracted_skills %}
+                        <li>{{ skill }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p>No skills found.</p>
+                    {% endif %}
+                </div>
+
+                <div class="info-card">
+                    <h3>Education</h3>
+                    {% if extracted_education %}
+                    <ul class="info-list" style="flex-direction: column; gap: 10px;">
+                        {% for edu in extracted_education %}
+                        <li>{{ edu }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p>No education found.</p>
+                    {% endif %}
+                </div>
+
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        // 1. Script for file upload display
+        function displayFileName(input) {
+            const fileNameDisplay = document.getElementById('fileNameDisplay');
+            if (input.files.length > 0) {
+                fileNameDisplay.textContent = 'Uploaded: ' + input.files[0].name;
+            } else {
+                fileNameDisplay.textContent = '';
+            }
+        }
+
+        // 2. Script for Chart.js
+        // We safely inject the data from Flask into this JavaScript variable
+        const chartData = {{ category_data | default('null') | tojson | safe }};
+
+        if (chartData) {
+            const ctx = document.getElementById('categoryChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: chartData.labels,
+                    datasets: [{
+                        label: 'Confidence Score (%)',
+                        data: chartData.scores,
+                        backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    indexAxis: 'y', // This makes it a horizontal bar chart
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        title: {
+                            display: true,
+                            text: 'Top Category Matches',
+                            color: '#ffffff',
+                            font: { size: 16 }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            max: 100, // Scores are in percentage
+                            ticks: { color: '#dddddd' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            title: {
+                                display: true,
+                                text: 'Confidence (%)',
+                                color: '#8b949e'
+                            }
+                        },
+                        y: {
+                            ticks: { color: '#dddddd' },
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' }
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+
+</body>
+
+</html>
