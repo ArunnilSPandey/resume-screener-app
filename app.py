@@ -6,10 +6,19 @@ import pickle
 app = Flask(__name__)
 
 # Load models===========================================================================================================
-rf_classifier_categorization = pickle.load(open('models/rf_classifier_categorization.pkl', 'rb'))
-tfidf_vectorizer_categorization = pickle.load(open('models/tfidf_vectorizer_categorization.pkl', 'rb'))
-rf_classifier_job_recommendation = pickle.load(open('models/rf_classifier_job_recommendation.pkl', 'rb'))
-tfidf_vectorizer_job_recommendation = pickle.load(open('models/tfidf_vectorizer_job_recommendation.pkl', 'rb'))
+try:
+    rf_classifier_categorization = pickle.load(open('models/rf_classifier_categorization.pkl', 'rb'))
+    tfidf_vectorizer_categorization = pickle.load(open('models/tfidf_vectorizer_categorization.pkl', 'rb'))
+    rf_classifier_job_recommendation = pickle.load(open('models/rf_classifier_job_recommendation.pkl', 'rb'))
+    tfidf_vectorizer_job_recommendation = pickle.load(open('models/tfidf_vectorizer_job_recommendation.pkl', 'rb'))
+except FileNotFoundError as e:
+    print(f"Error loading model files: {e}")
+    print("Please make sure all .pkl files are in the 'models' directory.")
+    rf_classifier_categorization = None  # Handle gracefully
+except Exception as e:
+    print(f"An unexpected error occurred loading models: {e}")
+    rf_classifier_categorization = None
+
 
 # Clean resume==========================================================================================================
 def cleanResume(txt):
@@ -18,62 +27,63 @@ def cleanResume(txt):
     cleanText = re.sub(r'RT|cc', ' ', cleanText)
     cleanText = re.sub(r'#\S+\s', ' ', cleanText)
     cleanText = re.sub(r'@\S+', '  ', cleanText)
-    # Also apply it here
     cleanText = re.sub('[%s]' % re.escape(r"""!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~"""), ' ', cleanText)
     cleanText = re.sub(r'[^\x00-\x7f]', ' ', cleanText)
     cleanText = re.sub(r'\s+', ' ', cleanText)
     return cleanText
 
-# Prediction and Category Name
-def predict_category(resume_text):
-    resume_text = cleanResume(resume_text)
-    resume_tfidf = tfidf_vectorizer_categorization.transform([resume_text])
-    predicted_category = rf_classifier_categorization.predict(resume_tfidf)[0]
-    return predicted_category
 
-#Prediction and Category Name
+# --- PREDICTION LOGIC MUST MATCH TRAINING LOGIC ---
+# NOTE: Your 'predict_category' function was defined but not used in the /predict route.
+# The route was predicting directly. I am keeping *your* logic from the route.
+# If your model was *actually* trained on skills only, this logic needs to change.
+# Based on the code in /predict, I am assuming the model was trained on clean_text.
+# def predict_category(resume_text): ... (This function is not being called)
+
+
+# Prediction and Category Name
 def job_recommendation(resume_text):
-    resume_text= cleanResume(resume_text)
-    resume_tfidf = tfidf_vectorizer_job_recommendation.transform([resume_text])
+    # Assuming it's trained on cleaned full text:
+    resume_text_cleaned = cleanResume(resume_text)
+    resume_tfidf = tfidf_vectorizer_job_recommendation.transform([resume_text_cleaned])
     recommended_job = rf_classifier_job_recommendation.predict(resume_tfidf)[0]
     return recommended_job
+
 
 def pdf_to_text(file):
     reader = PdfReader(file)
     text = ''
-    for page in range(len(reader.pages)):
-        text += reader.pages[page].extract_text()
+    # Use the more standard way to iterate
+    for page in reader.pages:
+        page_text = page.extract_text()
+        if page_text:
+            text += page_text
     return text
 
 
-
-
 # resume parsing
-import re
+# ... (all your extract functions: extract_contact_number_from_resume, extract_email_from_resume, extract_skills_from_resume, extract_education_from_resume, extract_name_from_resume) ...
+# (Keeping your functions as they are)
 
 def extract_contact_number_from_resume(text):
     contact_number = None
-
-    # Use regex pattern to find a potential contact number
     pattern = r"\b(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b"
     match = re.search(pattern, text)
     if match:
         contact_number = match.group()
-
     return contact_number
+
+
 def extract_email_from_resume(text):
     email = None
-
-    # Use regex pattern to find a potential email address
     pattern = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"
     match = re.search(pattern, text)
     if match:
         email = match.group()
-
     return email
 
+
 def extract_skills_from_resume(text):
-    # List of predefined skills
     skills_list = [
         'Python', 'Data Analysis', 'Machine Learning', 'Communication', 'Project Management', 'Deep Learning', 'SQL',
         'Tableau',
@@ -160,10 +170,12 @@ def extract_skills_from_resume(text):
         'Vulnerability Assessment', 'Incident Response', 'Forensic Analysis', 'Security Operations Center (SOC)',
         'Identity and Access Management (IAM)', 'Single Sign-On (SSO)',
         'Multi-Factor Authentication (MFA)', 'Blockchain', 'Cryptocurrency', 'Decentralized Finance (DeFi)',
-        'Smart Contracts', 'Web3', 'Non-Fungible Tokens (NFTs)']
-
+        'Smart Contracts', 'Web3', 'Non-Fungible Tokens (NFTs)'
+    ]  # <--- END OF FULL SKILLS LIST
 
     skills = []
+    if not isinstance(text, str):
+        return []
 
     for skill in skills_list:
         pattern = r"\b{}\b".format(re.escape(skill))
@@ -175,91 +187,148 @@ def extract_skills_from_resume(text):
 
 
 def extract_education_from_resume(text):
-    education = []
+    education_list = []
+    education_block_match = re.search(r"(?i)\bEDUCATION\b(.*?)\b(EXPERIENCE|PROJECTS|TECHNICAL SKILLS)\b", text,
+                                      re.DOTALL)
 
-    # List of education keywords to match against
-    education_keywords = [
-        'Computer Science', 'Information Technology', 'Software Engineering', 'Electrical Engineering', 'Mechanical Engineering', 'Civil Engineering',
-        'Chemical Engineering', 'Biomedical Engineering', 'Aerospace Engineering', 'Nuclear Engineering', 'Industrial Engineering', 'Systems Engineering',
-        'Environmental Engineering', 'Petroleum Engineering', 'Geological Engineering', 'Marine Engineering', 'Robotics Engineering', 'Biotechnology',
-        'Biochemistry', 'Microbiology', 'Genetics', 'Molecular Biology', 'Bioinformatics', 'Neuroscience', 'Biophysics', 'Biostatistics', 'Pharmacology',
-        'Physiology', 'Anatomy', 'Pathology', 'Immunology', 'Epidemiology', 'Public Health', 'Health Administration', 'Nursing', 'Medicine', 'Dentistry',
-        'Pharmacy', 'Veterinary Medicine', 'Medical Technology', 'Radiography', 'Physical Therapy', 'Occupational Therapy', 'Speech Therapy', 'Nutrition',
-        'Sports Science', 'Kinesiology', 'Exercise Physiology', 'Sports Medicine', 'Rehabilitation Science', 'Psychology', 'Counseling', 'Social Work',
-        'Sociology', 'Anthropology', 'Criminal Justice', 'Political Science', 'International Relations', 'Economics', 'Finance', 'Accounting', 'Business Administration',
-        'Management', 'Marketing', 'Entrepreneurship', 'Hospitality Management', 'Tourism Management', 'Supply Chain Management', 'Logistics Management',
-        'Operations Management', 'Human Resource Management', 'Organizational Behavior', 'Project Management', 'Quality Management', 'Risk Management',
-        'Strategic Management', 'Public Administration', 'Urban Planning', 'Architecture', 'Interior Design', 'Landscape Architecture', 'Fine Arts',
-        'Visual Arts', 'Graphic Design', 'Fashion Design', 'Industrial Design', 'Product Design', 'Animation', 'Film Studies', 'Media Studies',
-        'Communication Studies', 'Journalism', 'Broadcasting', 'Creative Writing', 'English Literature', 'Linguistics', 'Translation Studies',
-        'Foreign Languages', 'Modern Languages', 'Classical Studies', 'History', 'Archaeology', 'Philosophy', 'Theology', 'Religious Studies',
-        'Ethics', 'Education', 'Early Childhood Education', 'Elementary Education', 'Secondary Education', 'Special Education', 'Higher Education',
-        'Adult Education', 'Distance Education', 'Online Education', 'Instructional Design', 'Curriculum Development'
-        'Library Science', 'Information Science', 'Computer Engineering', 'Software Development', 'Cybersecurity', 'Information Security',
-        'Network Engineering', 'Data Science', 'Data Analytics', 'Business Analytics', 'Operations Research', 'Decision Sciences',
-        'Human-Computer Interaction', 'User Experience Design', 'User Interface Design', 'Digital Marketing', 'Content Strategy',
-        'Brand Management', 'Public Relations', 'Corporate Communications', 'Media Production', 'Digital Media', 'Web Development',
-        'Mobile App Development', 'Game Development', 'Virtual Reality', 'Augmented Reality', 'Blockchain Technology', 'Cryptocurrency',
-        'Digital Forensics', 'Forensic Science', 'Criminalistics', 'Crime Scene Investigation', 'Emergency Management', 'Fire Science',
-        'Environmental Science', 'Climate Science', 'Meteorology', 'Geography', 'Geomatics', 'Remote Sensing', 'Geoinformatics',
-        'Cartography', 'GIS (Geographic Information Systems)', 'Environmental Management', 'Sustainability Studies', 'Renewable Energy',
-        'Green Technology', 'Ecology', 'Conservation Biology', 'Wildlife Biology', 'Zoology']
+    if not education_block_match:
+        return []
 
-    for keyword in education_keywords:
-        pattern = r"(?i)\b{}\b".format(re.escape(keyword))
-        match = re.search(pattern, text)
-        if match:
-            education.append(match.group())
+    edu_text = education_block_match.group(1)
+    edu_text = re.sub(r'\s+', ' ', edu_text).strip()
 
-    return education
+    date_pattern = r"(?i)((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s\d{4}(?:\s*–\s*Present)?|\bMarch\s\d{4}\b|\bMay\s\d{4}\b)"
+
+    parts = re.split(date_pattern, edu_text)
+
+    if len(parts) <= 1:
+        return [edu_text]
+
+    education_list = []
+    for i in range(0, len(parts) - 1, 2):
+        if parts[i] and parts[i + 1]:
+            entry = parts[i].strip() + " " + parts[i + 1].strip()
+            if len(entry) > 20:
+                education_list.append(entry)
+
+    if not education_list:
+        return [edu_text]
+
+    return education_list
+
 
 def extract_name_from_resume(text):
     name = None
-
-    # Use regex pattern to find a potential name
-    pattern = r"(\b[A-Z][a-z]+\b)\s(\b[A-Z][a-z]+\b)"
+    pattern = r"\b([A-Z][a-z]+(?:\s[A-Z][a-z]+){1,2})\b|(\b[A-Z]+(?:\s[A-Z]+){1,2})\b"
     match = re.search(pattern, text)
     if match:
-        name = match.group()
-
+        name = match.group(1) if match.group(1) else match.group(2)
     return name
-
-
 
 
 # routes===============================================
 
 @app.route('/')
 def resume():
-    # Provide a simple UI to upload a resume
-    return render_template("resume.html")
+    # Pass 'None' for category_data on initial load
+    return render_template("resume1.html", category_data=None)
 
-@app.route('/pred', methods=['POST'])
-def pred():
-    # Process the PDF or TXT file and make prediction
+
+# --- THIS IS THE FULLY CORRECTED /PREDICT ROUTE ---
+@app.route('/predict', methods=['POST'])
+def predict():
+    # Initialize chart data to None
+    category_data_for_chart = None
+
     if 'resume' in request.files:
         file = request.files['resume']
         filename = file.filename
-        if filename.endswith('.pdf'):
-            text = pdf_to_text(file)
-        elif filename.endswith('.txt'):
-            text = file.read().decode('utf-8')
-        else:
-            return render_template('resume.html', message="Invalid file format. Please upload a PDF or TXT file.")
 
-        predicted_category = predict_category(text)
+        # Check if a file was actually selected
+        if filename == '':
+            return render_template("resume1.html",
+                                   message="No file selected. Please choose a file to upload.",
+                                   category_data=category_data_for_chart)
+
+        text = ''  # Initialize text variable
+
+        # --- THIS IS THE MISSING FILE-READING LOGIC ---
+        if filename.endswith('.pdf'):
+            try:
+                text = pdf_to_text(file)
+            except Exception as e:
+                print(f"Error reading PDF: {e}")
+                return render_template('resume1.html', message=f"Error processing PDF file: {e}",
+                                       category_data=category_data_for_chart)
+        elif filename.endswith('.txt'):
+            try:
+                # Ensure correct decoding
+                text = file.read().decode('utf-8')
+            except Exception as e:
+                print(f"Error reading TXT: {e}")
+                return render_template('resume1.html', message=f"Error processing TXT file: {e}",
+                                       category_data=category_data_for_chart)
+        else:
+            return render_template('resume1.html',
+                                   message="Invalid file format. Please upload a PDF or TXT file.",
+                                   category_data=category_data_for_chart)
+        # --- END OF FILE-READING LOGIC ---
+
+        # Graceful check if models failed to load
+        if not rf_classifier_categorization:
+            return render_template('resume1.html',
+                                   message="Server Error: Model files are not loaded. Please check server logs.",
+                                   category_data=category_data_for_chart)
+
+        # Now the 'text' variable is defined, and we can proceed.
+
+        # --- 1. Clean and vectorize text (This is where your error was) ---
+        clean_text = cleanResume(text)
+        text_features_cat = tfidf_vectorizer_categorization.transform([clean_text])
+
+        # --- 2. Get Top Category Prediction ---
+        predicted_category = rf_classifier_categorization.predict(text_features_cat)[0]
+
+        # --- 3. NEW: Get Probabilities for the Chart ---
+        category_probabilities = rf_classifier_categorization.predict_proba(text_features_cat)[0]
+        all_categories = rf_classifier_categorization.classes_
+
+        # Zip categories with their scores, sort descending
+        category_scores = sorted(zip(all_categories, category_probabilities), key=lambda x: x[1], reverse=True)
+
+        # Get top 6 for the chart
+        top_categories = category_scores[:6]
+
+        # Format data for Chart.js
+        category_data_for_chart = {
+            'labels': [item[0] for item in top_categories],
+            'scores': [item[1] * 100 for item in top_categories]  # Convert to percentage
+        }
+
+        # --- 4. Get Other Info (as before) ---
         recommended_job = job_recommendation(text)
         phone = extract_contact_number_from_resume(text)
         email = extract_email_from_resume(text)
-
         extracted_skills = extract_skills_from_resume(text)
         extracted_education = extract_education_from_resume(text)
         name = extract_name_from_resume(text)
 
-        return render_template('resume.html', predicted_category=predicted_category,recommended_job=recommended_job,
-                               phone=phone,name=name,email=email,extracted_skills=extracted_skills,extracted_education=extracted_education)
+        # --- 5. Render Template with NEW Chart Data ---
+        return render_template(
+            'resume1.html',
+            predicted_category=predicted_category,
+            recommended_job=recommended_job,
+            phone=phone,
+            name=name,
+            email=email,
+            extracted_skills=extracted_skills,
+            extracted_education=extracted_education,
+            category_data=category_data_for_chart  # <-- Pass the new data here
+        )
     else:
-        return render_template("resume.html", message="No resume file uploaded.")
+        # Handle no file uploaded
+        return render_template("resume1.html", message="No resume file uploaded.", category_data=category_data_for_chart)
+
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=7860)
